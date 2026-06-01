@@ -35,7 +35,7 @@ export default function Login() {
       <div style={s.bgGlow3} />
 
       {/* Left panel */}
-      <div style={s.left}>
+      <div className="login-left" style={s.left}>
         <div style={s.leftContent}>
           {/* Logo */}
           <div style={s.logoRow}>
@@ -47,26 +47,28 @@ export default function Login() {
           </div>
 
           <h1 style={s.headline}>
-            Applied <span style={{ color: '#F97316', fontStyle: 'italic' }}>AI</span> &<br />
-            Digital Productivity<br />
-            <span style={{ color: '#EAB308' }}>Professional Certificate</span>
+            Professional<br />
+            <span style={{ color: '#F97316', fontStyle: 'italic' }}>Technology</span> Training<br />
+            <span style={{ color: '#EAB308' }}>& Certification</span>
           </h1>
 
-          <p style={s.tagline}>8 Weeks · 96 Hours · 3 Stackable Certificates</p>
-          <p style={s.location}>📍 Denver, CO · WIOA/ETPL Eligible · $4,800</p>
+          <p style={s.tagline}>Industry-Ready Programs · Stackable Certificates</p>
+          <p style={s.location}>📍 Denver, CO · WIOA/ETPL Eligible</p>
 
-          {/* 3 cert levels */}
+          {/* Program tracks */}
           <div style={s.certList}>
             {[
-              { color: '#3B82F6', label: 'Level 1', title: 'Digital Readiness & Workplace Technology', weeks: 'Weeks 1–2' },
-              { color: '#EAB308', label: 'Level 2', title: 'AI Productivity & Workplace Applications', weeks: 'Weeks 3–5' },
-              { color: '#22C55E', label: 'Level 3', title: 'AI Automation & Digital Operations', weeks: 'Weeks 6–8' },
-            ].map((c, i) => (
-              <div key={i} style={{ ...s.certItem, borderLeftColor: c.color }}>
-                <div style={{ ...s.certDot, background: c.color }} />
+              { color: '#F97316', icon: '🤖', label: 'Applied AI & Digital Productivity', desc: 'AI tools, automation & workplace productivity' },
+              { color: '#3B82F6', icon: '☁️', label: 'AWS Cloud Architect Engineer', desc: 'Architecture, Terraform, CI/CD, containers & Kubernetes' },
+              { color: '#EF4444', icon: '🔐', label: 'Cybersecurity Essentials', desc: 'Security principles, defense & compliance' },
+              { color: '#8B5CF6', icon: '🧠', label: 'AI / ML Foundations', desc: 'Machine learning concepts & applied modeling' },
+              { color: '#22C55E', icon: '🚀', label: 'Technical Mentorship & Placement', desc: 'Career coaching, job prep & employer connections' },
+            ].map((p, i) => (
+              <div key={i} style={{ ...s.certItem, borderLeftColor: p.color }}>
+                <span style={{ fontSize: '1rem', flexShrink: 0 }}>{p.icon}</span>
                 <div>
-                  <div style={{ fontSize: '0.65rem', color: '#6B7A96', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{c.label} · {c.weeks}</div>
-                  <div style={{ fontSize: '0.82rem', color: '#B0BACA', fontWeight: 500 }}>{c.title}</div>
+                  <div style={{ fontSize: '0.78rem', color: '#E8EDF5', fontWeight: 600 }}>{p.label}</div>
+                  <div style={{ fontSize: '0.7rem', color: '#6B7A96', marginTop: 1 }}>{p.desc}</div>
                 </div>
               </div>
             ))}
@@ -88,8 +90,8 @@ export default function Login() {
       </div>
 
       {/* Right panel — login form */}
-      <div style={s.right}>
-        <form onSubmit={handleSubmit} style={s.form} className="fade-up">
+      <div className="login-right" style={s.right}>
+        <form onSubmit={handleSubmit} style={s.form} className="login-form fade-up">
           {/* Mobile logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.75rem' }}>
             <div style={{ ...s.logoMark, width: 38, height: 38, fontSize: '1rem' }}>Z</div>
@@ -130,8 +132,8 @@ export default function Login() {
 
           <div style={s.helpBox}>
             <div style={{ marginBottom: 4 }}>{t('noAccess')}</div>
-            <strong style={{ color: '#F97316' }}>admissions@zicloudtech.com</strong>
-            <div style={{ marginTop: 4 }}>📞 (720) 555-0100</div>
+            <strong style={{ color: '#F97316' }}>zicttraining@cloudtech.com</strong>
+            <div style={{ marginTop: 4 }}>📞 720-788-0908</div>
           </div>
 
           {/* Features preview */}

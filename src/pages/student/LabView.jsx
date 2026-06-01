@@ -5,14 +5,14 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import AppLayout from '../../components/layout/AppLayout'
-import { WEEKS, getWeekStatus, LAB_DATA } from '../../lib/programData'
+import { getWeekByNum, getWeekStatus, getWeeksByProgram, LAB_DATA } from '../../lib/programData'
 
 export default function LabView() {
   const { weekNum, labNum } = useParams()
   const wn = parseInt(weekNum), ln = parseInt(labNum)
-  const week = WEEKS[wn - 1]
-  const lab = week?.labs[ln - 1]
   const { profile } = useAuth()
+  const week = getWeekByNum(profile?.program, wn)
+  const lab = week?.labs[ln - 1]
   const { t } = useTranslation()
   const navigate = useNavigate()
 
@@ -20,6 +20,7 @@ export default function LabView() {
   const [allProgress, setAllProgress] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [submitText, setSubmitText] = useState('')
+  const [submitNotes, setSubmitNotes] = useState('')
   const [submitLink, setSubmitLink] = useState('')
   const [submitType, setSubmitType] = useState('text')
   const [uploadedFile, setUploadedFile] = useState(null)
@@ -27,8 +28,10 @@ export default function LabView() {
   const [msg, setMsg] = useState('')
   const [activeTab, setActiveTab] = useState('guide')
   const [videoUrl, setVideoUrl] = useState('')
+  const [stepVideos, setStepVideos] = useState({})
 
-  const labData = LAB_DATA[`w${wn}l${ln}`] || {}
+  const labPrefix = profile?.program && profile.program !== 'applied_ai' ? `${profile.program}_` : ''
+  const labData = LAB_DATA[`${labPrefix}w${wn}l${ln}`] || {}
 
   useEffect(() => {
     if (!week || !lab) { navigate('/program'); return }
@@ -42,12 +45,22 @@ export default function LabView() {
     if (status === 'locked') { navigate(`/program/week/${wn}`); return }
     const existing = (all || []).find(p => p.week_num === wn && p.lab_num === ln)
     setProgress(existing || null)
-    if (existing?.submission_text) setSubmitText(existing.submission_text)
     if (existing?.submission_url) setSubmitLink(existing.submission_url)
     if (existing?.submission_type) setSubmitType(existing.submission_type)
-    // Fetch video URL
+    if (existing?.submission_text) {
+      if (existing.submission_type === 'text') setSubmitText(existing.submission_text)
+      else setSubmitNotes(existing.submission_text)
+    }
+    // Fetch week video
     const { data: sess } = await supabase.from('class_sessions').select('recording_url').eq('week_num', wn).limit(1).single()
     if (sess?.recording_url) setVideoUrl(sess.recording_url)
+    // Fetch per-step videos
+    const { data: svData } = await supabase.from('step_videos').select('step_num,video_url').eq('week_num', wn).eq('lab_num', ln)
+    if (svData?.length) {
+      const map = {}
+      svData.forEach(sv => { map[sv.step_num - 1] = sv.video_url })
+      setStepVideos(map)
+    }
   }
 
   const onDrop = useCallback(async (files) => {
@@ -74,7 +87,7 @@ export default function LabView() {
     const payload = {
       user_id: profile.id, week_num: wn, lab_num: ln,
       completed: true, completed_at: new Date().toISOString(),
-      submission_text: submitText || null,
+      submission_text: submitType === 'text' ? (submitText || null) : (submitNotes || null),
       submission_url: submitLink || null,
       submission_type: submitType,
       grade: 'pending',
@@ -84,7 +97,7 @@ export default function LabView() {
       : await supabase.from('progress').insert(payload)
 
     if (!error) {
-      // Send notification to instructor
+      // Notify instructors
       const { data: admins } = await supabase.from('profiles').select('id').in('role', ['admin', 'instructor'])
       if (admins?.length) {
         await supabase.from('notifications').insert(admins.map(a => ({
@@ -95,6 +108,25 @@ export default function LabView() {
           link: `/admin/grading`
         })))
       }
+
+      // Check if this submission unlocks the next week — send an instant unlock notification
+      const { data: updatedProgress } = await supabase.from('progress').select('*').eq('user_id', profile.id)
+      const programWeeks = getWeeksByProgram(profile?.program)
+      const nextWeek = programWeeks.find(w => w.num === wn + 1)
+      if (nextWeek?.unlocksAt) {
+        const wasLocked = getWeekStatus(nextWeek.num, allProgress) === 'locked'
+        const nowUnlocked = getWeekStatus(nextWeek.num, updatedProgress || []) === 'unlocked'
+        if (wasLocked && nowUnlocked) {
+          await supabase.from('notifications').insert({
+            user_id: profile.id,
+            title: `🔓 Week ${nextWeek.num} is now unlocked!`,
+            body: `You've met the requirements for "${nextWeek.title}". Head to your Program page to start the next week.`,
+            type: 'success',
+            link: `/program/week/${nextWeek.num}`
+          })
+        }
+      }
+
       setMsg('✅ Submitted! Your instructor will review and grade this lab.')
       loadData()
     } else {
@@ -149,7 +181,7 @@ export default function LabView() {
 
         {/* Tabs */}
         <div className="tab-bar" style={{ top: 58, borderRadius: 'var(--r) var(--r) 0 0', marginBottom: 0 }}>
-          {[['guide', '📋 Step-by-Step Guide'], ['submit', '📤 Submit Work'], ...(videoUrl ? [['video', '🎬 Video Guide']] : [])].map(([id, label]) => (
+          {[['guide', '📋 Guide'], ['slides', '📊 Slides'], ['video', '🎬 Video'], ['submit', '📤 Submit']].map(([id, label]) => (
             <button key={id} className={`tab-btn ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id)}>{label}</button>
           ))}
         </div>
@@ -161,17 +193,21 @@ export default function LabView() {
             {labData.steps?.length > 0 ? (
               <div>
                 <div className="section-label">Step-by-Step Instructions</div>
-                {labData.steps.map((step, i) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '36px 1fr', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ width: 26, height: 26, borderRadius: '50%', background: step.featured ? 'var(--orange-d)' : 'var(--s3)', border: step.featured ? '1px solid var(--orange-b)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: 700, color: step.featured ? 'var(--orange)' : 'var(--muted)', flexShrink: 0, fontFamily: 'DM Mono' }}>{i + 1}</div>
-                    <div>
-                      <div style={{ fontWeight: 700, marginBottom: 4, fontSize: '0.88rem' }}>{step.action}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text2)', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: step.detail.replace(/`([^`]+)`/g, '<code style="font-family:DM Mono;background:var(--s3);padding:1px 6px;border-radius:3px;font-size:0.8em;color:#38d9c0">$1</code>') }} />
-                      {step.tip && <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--yellow-d)', borderLeft: '2px solid var(--yellow)', borderRadius: '0 4px 4px 0', fontSize: '0.74rem', color: 'var(--yellow)' }}>💡 {step.tip}</div>}
-                      {step.warn && <div style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(239,68,68,0.08)', borderLeft: '2px solid var(--danger)', borderRadius: '0 4px 4px 0', fontSize: '0.74rem', color: 'var(--danger)' }}>⚠ {step.warn}</div>}
+                {labData.steps.map((step, i) => {
+                  const stepVideoUrl = stepVideos[i] || step.videoUrl || null
+                  return (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '36px 1fr', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: step.featured ? 'var(--orange-d)' : 'var(--s3)', border: step.featured ? '1px solid var(--orange-b)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: 700, color: step.featured ? 'var(--orange)' : 'var(--muted)', flexShrink: 0, fontFamily: 'DM Mono' }}>{i + 1}</div>
+                      <div>
+                        <div style={{ fontWeight: 700, marginBottom: 4, fontSize: '0.88rem' }}>{step.action}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text2)', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: step.detail.replace(/`([^`]+)`/g, '<code style="font-family:DM Mono;background:var(--s3);padding:1px 6px;border-radius:3px;font-size:0.8em;color:#38d9c0">$1</code>') }} />
+                        {step.tip && <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--yellow-d)', borderLeft: '2px solid var(--yellow)', borderRadius: '0 4px 4px 0', fontSize: '0.74rem', color: 'var(--yellow)' }}>💡 {step.tip}</div>}
+                        {step.warn && <div style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(239,68,68,0.08)', borderLeft: '2px solid var(--danger)', borderRadius: '0 4px 4px 0', fontSize: '0.74rem', color: 'var(--danger)' }}>⚠ {step.warn}</div>}
+                        {stepVideoUrl && <StepVideo url={stepVideoUrl} />}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: '0.85rem' }}>
@@ -183,6 +219,31 @@ export default function LabView() {
               <div style={{ fontWeight: 700, fontSize: '0.78rem', color: 'var(--orange)', marginBottom: 4 }}>📤 Submission Format</div>
               <div style={{ fontSize: '0.76rem', color: 'var(--text2)' }}>{labData.deliverable || `Submit via the Submit Work tab. File: LAB${ln}_YourName_W${wn} · Pass/Fail based on completion + rubric criteria`}</div>
             </div>
+          </div>
+        )}
+
+        {/* Slides tab */}
+        {activeTab === 'slides' && (
+          <div className="card" style={{ borderRadius: '0 0 var(--r-lg) var(--r-lg)', overflow: 'hidden' }}>
+            <SlideShow labData={labData} lab={lab} week={week} wn={wn} ln={ln} stepVideos={stepVideos} />
+          </div>
+        )}
+
+        {/* Video tab */}
+        {activeTab === 'video' && (
+          <div className="card" style={{ padding: '1.5rem', borderRadius: '0 0 var(--r-lg) var(--r-lg)' }}>
+            {videoUrl ? (
+              <>
+                <div className="section-label" style={{ marginBottom: '1rem' }}>Video Guide</div>
+                <VideoEmbed url={videoUrl} />
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '3rem 1.5rem', color: 'var(--muted)' }}>
+                <div style={{ fontSize: '3rem', marginBottom: 12 }}>🎬</div>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 6 }}>No video uploaded yet</div>
+                <div style={{ fontSize: '0.8rem', lineHeight: 1.6 }}>Your instructor will add a recording or walkthrough video for this lab soon. Check back after class.</div>
+              </div>
+            )}
           </div>
         )}
 
@@ -237,12 +298,12 @@ export default function LabView() {
             {/* Optional notes */}
             <div className="form-group" style={{ marginBottom: '1.25rem' }}>
               <label className="form-label">Notes for instructor (optional)</label>
-              <textarea className="input" placeholder="Any notes, questions, or context for your instructor…" value={submitText} onChange={e => setSubmitText(e.target.value)} rows={3} />
+              <textarea className="input" placeholder="Any notes, questions, or context for your instructor…" value={submitNotes} onChange={e => setSubmitNotes(e.target.value)} rows={3} />
             </div>
 
             {msg && <div style={{ padding: '10px 14px', borderRadius: 8, background: msg.startsWith('✅') ? 'var(--green-d)' : 'rgba(239,68,68,0.08)', border: `1px solid ${msg.startsWith('✅') ? 'var(--green-b)' : 'rgba(239,68,68,0.2)'}`, color: msg.startsWith('✅') ? 'var(--green)' : 'var(--danger)', fontSize: '0.8rem', marginBottom: '1rem' }}>{msg}</div>}
 
-            <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting || (!submitText && !submitLink)} style={{ width: '100%' }}>
+            <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting || (submitType === 'text' ? !submitText : !submitLink)} style={{ width: '100%' }}>
               {submitting ? <><div className="loader-sm" /> Submitting…</> : isComplete ? '✏️ Update Submission' : `✅ ${t('submitLab')}`}
             </button>
 
@@ -259,14 +320,6 @@ export default function LabView() {
           </div>
         )}
 
-        {/* Video tab */}
-        {activeTab === 'video' && videoUrl && (
-          <div className="card" style={{ padding: '1.5rem', borderRadius: '0 0 var(--r-lg) var(--r-lg)' }}>
-            <div className="section-label">Video Guide</div>
-            <VideoEmbed url={videoUrl} />
-          </div>
-        )}
-
         {/* Navigation */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.25rem' }}>
           {ln > 1 && <Link to={`/program/week/${wn}/lab/${ln - 1}`} className="btn btn-ghost">← Lab {ln - 1}</Link>}
@@ -276,6 +329,119 @@ export default function LabView() {
         </div>
       </div>
     </AppLayout>
+  )
+}
+
+function StepVideo({ url }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginTop: 10 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border2)', background: open ? 'var(--s3)' : 'var(--s2)', color: 'var(--text2)', fontSize: '0.73rem', fontWeight: 600, cursor: 'pointer' }}
+      >
+        <span style={{ fontSize: '0.8rem' }}>{open ? '▾' : '▶'}</span>
+        {open ? 'Hide video' : 'Watch this step'}
+      </button>
+      {open && (
+        <div style={{ marginTop: 10, borderRadius: 'var(--r)', overflow: 'hidden', border: '1px solid var(--border2)' }}>
+          <VideoEmbed url={url} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SlideShow({ labData, lab, week, wn, ln, stepVideos = {} }) {
+  const [current, setCurrent] = useState(0)
+
+  const slides = [
+    { type: 'intro' },
+    ...(labData.steps || []).map((step, i) => ({ type: 'step', step, i })),
+    { type: 'deliverable' },
+  ]
+
+  const total = slides.length
+  const slide = slides[current]
+  const color = lab.isApplied ? 'var(--orange)' : week.color
+
+  const prev = () => setCurrent(c => Math.max(0, c - 1))
+  const next = () => setCurrent(c => Math.min(total - 1, c + 1))
+
+  return (
+    <div>
+      {/* Slide area */}
+      <div style={{ minHeight: 380, padding: '2.5rem 2rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', borderBottom: '1px solid var(--border)' }}>
+
+        {slide.type === 'intro' && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ display: 'inline-block', padding: '6px 16px', borderRadius: 20, background: `${color}22`, color, fontWeight: 700, fontSize: '0.72rem', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Week {wn} · Lab {ln}</div>
+            <h2 style={{ fontWeight: 900, fontSize: 'clamp(1.3rem,4vw,2rem)', marginBottom: 16, lineHeight: 1.2 }}>{lab.title}</h2>
+            {labData.overview ? (
+              <p style={{ fontSize: '0.88rem', color: 'var(--text2)', lineHeight: 1.7, maxWidth: 580, margin: '0 auto' }}>{labData.overview}</p>
+            ) : (
+              <p style={{ fontSize: '0.88rem', color: 'var(--muted)' }}>{lab.desc}</p>
+            )}
+            <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.76rem', color: 'var(--muted)' }}>📋 {labData.steps?.length || 0} steps</span>
+              {lab.isApplied && <span style={{ fontSize: '0.76rem', color: 'var(--orange)' }}>★ Applied Lab</span>}
+            </div>
+          </div>
+        )}
+
+        {slide.type === 'step' && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: slide.step.featured ? 'var(--orange-d)' : 'var(--s3)', border: slide.step.featured ? '2px solid var(--orange-b)' : '2px solid var(--border2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1rem', color: slide.step.featured ? 'var(--orange)' : 'var(--muted)', fontFamily: 'DM Mono', flexShrink: 0 }}>{slide.i + 1}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>STEP {slide.i + 1} OF {labData.steps.length}</div>
+            </div>
+            <h3 style={{ fontWeight: 800, fontSize: 'clamp(1rem,3vw,1.35rem)', marginBottom: 14, lineHeight: 1.3 }}>{slide.step.action}</h3>
+            <div style={{ fontSize: '0.84rem', color: 'var(--text2)', lineHeight: 1.75 }} dangerouslySetInnerHTML={{ __html: slide.step.detail.replace(/`([^`]+)`/g, '<code style="font-family:DM Mono;background:var(--s3);padding:2px 7px;border-radius:3px;font-size:0.82em;color:#38d9c0">$1</code>') }} />
+            {slide.step.tip && (
+              <div style={{ marginTop: 16, padding: '10px 14px', background: 'var(--yellow-d)', borderLeft: '3px solid var(--yellow)', borderRadius: '0 6px 6px 0', fontSize: '0.78rem', color: 'var(--yellow)' }}>💡 {slide.step.tip}</div>
+            )}
+            {slide.step.warn && (
+              <div style={{ marginTop: 16, padding: '10px 14px', background: 'rgba(239,68,68,0.08)', borderLeft: '3px solid var(--danger)', borderRadius: '0 6px 6px 0', fontSize: '0.78rem', color: 'var(--danger)' }}>⚠ {slide.step.warn}</div>
+            )}
+            {(stepVideos[slide.i] || slide.step.videoUrl) && (
+              <div style={{ marginTop: 16 }}>
+                <StepVideo url={stepVideos[slide.i] || slide.step.videoUrl} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {slide.type === 'deliverable' && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>📤</div>
+            <h3 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: 12 }}>What to Submit</h3>
+            <div style={{ fontSize: '0.86rem', color: 'var(--text2)', lineHeight: 1.7, maxWidth: 560, margin: '0 auto', padding: '16px 20px', background: 'var(--s2)', borderRadius: 'var(--r)', border: '1px solid var(--border2)' }}>
+              {labData.deliverable || `File: LAB${ln}_YourName_W${wn} — Submit via the Submit Work tab. Pass/Fail based on completion + rubric criteria.`}
+            </div>
+            <div style={{ marginTop: 16, fontSize: '0.78rem', color: 'var(--muted)' }}>Go to the <strong>Submit</strong> tab when ready.</div>
+          </div>
+        )}
+      </div>
+
+      {/* Controls */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.5rem' }}>
+        <button className="btn btn-ghost btn-sm" onClick={prev} disabled={current === 0}>← Prev</button>
+
+        {/* Progress dots */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', flex: 1, padding: '0 12px' }}>
+          {slides.map((_, i) => (
+            <button key={i} onClick={() => setCurrent(i)} style={{ width: i === current ? 20 : 8, height: 8, borderRadius: 4, background: i === current ? color : 'var(--border2)', border: 'none', cursor: 'pointer', transition: 'all 0.2s', padding: 0, flexShrink: 0 }} />
+          ))}
+        </div>
+
+        <button className="btn btn-ghost btn-sm" onClick={next} disabled={current === total - 1}>Next →</button>
+      </div>
+
+      {/* Slide counter */}
+      <div style={{ textAlign: 'center', paddingBottom: '0.75rem', fontSize: '0.7rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+        {current + 1} / {total}
+      </div>
+    </div>
   )
 }
 

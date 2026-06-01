@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import AppLayout from '../../components/layout/AppLayout'
-import { WEEKS, getCertStatus, getWeekStatus } from '../../lib/programData'
+import { getWeeksByProgram, getTotalLabsByProgram, getCertStatus, getWeekStatus, getProgramById } from '../../lib/programData'
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 export default function Dashboard() {
@@ -41,10 +41,14 @@ export default function Dashboard() {
     setLoading(false)
   }
 
+  const myProgram = profile?.program || 'applied_ai'
+  const programMeta = getProgramById(myProgram)
+  const WEEKS = getWeeksByProgram(myProgram)
+  const totalLabs = getTotalLabsByProgram(myProgram) || 52
+
   const done = progress.filter(p => p.completed).length
-  const totalLabs = 52
   const pct = Math.round((done / totalLabs) * 100)
-  const certs = getCertStatus(progress)
+  const certs = getCertStatus(progress, myProgram)
   const weeksActive = [...new Set(progress.filter(p => p.completed).map(p => p.week_num))].length
   const totalMinutes = timeData.reduce((s, d) => s + d.mins, 0)
   const attRate = attendance.total > 0 ? Math.round((attendance.present / attendance.total) * 100) : 0
@@ -62,7 +66,7 @@ export default function Dashboard() {
     <AppLayout>
       <div style={{ padding: '0 0 3rem' }}>
         {/* Hero banner */}
-        <div style={{ background: 'linear-gradient(135deg, var(--s1) 0%, rgba(249,115,22,0.06) 100%)', borderBottom: '1px solid var(--border)', padding: '2rem 1.5rem' }}>
+        <div className="dash-hero" style={{ background: 'linear-gradient(135deg, var(--s1) 0%, rgba(249,115,22,0.06) 100%)', borderBottom: '1px solid var(--border)', padding: '2rem 1.5rem' }}>
           <div style={{ maxWidth: 1100, margin: '0 auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1.5rem', flexWrap: 'wrap' }}>
               <div className="fade-up">
@@ -120,7 +124,7 @@ export default function Dashboard() {
             <StatCard num={certs.length} label="Certs Earned" icon="🎓" color="var(--yellow)" />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.25rem', flexWrap: 'wrap' }}>
+          <div className="dash-grid">
             <div>
               {/* Time chart */}
               {timeData.length > 0 && (

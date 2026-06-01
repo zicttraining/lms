@@ -78,6 +78,13 @@ export default function Messages() {
   const inbox = threads.filter(t => t.messages.some(m => m.to_id === profile.id))
   const sent = threads.filter(t => t.messages[0]?.from_id === profile.id)
 
+  const panelActive = !!(activeThread || tab === 'new' || tab === 'support')
+
+  function handleMobileBack() {
+    if (activeThread) setActiveThread(null)
+    else setTab('inbox')
+  }
+
   return (
     <AppLayout>
       <div style={{ maxWidth: 1000, margin: '0 auto', padding: '1.5rem' }}>
@@ -85,11 +92,11 @@ export default function Messages() {
           {t('messages')} & {t('support')}
         </h1>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '1rem', minHeight: 500 }}>
+        <div className={`msg-grid ${panelActive ? 'msg-panel-active' : ''}`}>
           {/* Left: thread list */}
-          <div className="card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div className="card msg-panel-list" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div className="tab-bar" style={{ top: 0, borderRadius: 'var(--r) var(--r) 0 0' }}>
-              {[['inbox', '📥 Inbox'], ['sent', '📤 Sent'], ['new', '✏️ New'], ['support', '🆘 Support']].map(([id, label]) => (
+              {[['inbox', '📥 Inbox'], ['sent', '📤 Sent'], ['new', '✏️ New'], ['support', '🆘 Help']].map(([id, label]) => (
                 <button key={id} className={`tab-btn ${tab === id ? 'active' : ''}`} style={{ flex: 1, fontSize: '0.72rem', padding: '0.65rem 0.4rem' }} onClick={() => { setTab(id); setActiveThread(null) }}>{label}</button>
               ))}
             </div>
@@ -110,7 +117,14 @@ export default function Messages() {
           </div>
 
           {/* Right: message area */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="card msg-panel-msg" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Mobile back button */}
+            <button
+              className="msg-mobile-back btn btn-ghost btn-sm"
+              onClick={handleMobileBack}
+              style={{ alignSelf: 'flex-start', margin: '10px 12px 0', gap: 6 }}
+            >← Back</button>
+
             {tab === 'new' && (
               <div style={{ padding: '1.25rem', flex: 1 }}>
                 <h3 style={{ fontWeight: 700, marginBottom: '1rem' }}>{t('newMessage')}</h3>
@@ -140,13 +154,13 @@ export default function Messages() {
                   Need help with the portal, your coursework, or account access? Your instructor and support team are here.
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <a href="mailto:admissions@zicloudtech.com" className="btn btn-primary">📧 Email Support</a>
+                  <a href="mailto:zicttraining@cloudtech.com" className="btn btn-primary">📧 Email Support</a>
                   <button className="btn btn-ghost" onClick={() => setTab('new')}>✉ Send In-Portal Message</button>
                 </div>
                 <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--s2)', borderRadius: 'var(--r)', fontSize: '0.78rem', color: 'var(--text2)', lineHeight: 1.7 }}>
                   <strong style={{ color: 'var(--orange)' }}>Response time:</strong> Within 24 hours (Mon–Fri)<br />
-                  <strong style={{ color: 'var(--orange)' }}>Urgent:</strong> admissions@zicloudtech.com<br />
-                  <strong style={{ color: 'var(--orange)' }}>Phone:</strong> (720) 555-0100<br />
+                  <strong style={{ color: 'var(--orange)' }}>Urgent:</strong> zicttraining@cloudtech.com<br />
+                  <strong style={{ color: 'var(--orange)' }}>Phone:</strong> 720-788-0908<br />
                   <strong style={{ color: 'var(--orange)' }}>Address:</strong> 7900 E Union Ave, Suite 1100, Denver, CO 80237
                 </div>
               </div>

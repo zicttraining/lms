@@ -16,7 +16,7 @@ export default function AdminLayout() {
   return (
     <AppLayout>
       <div style={{ borderBottom: '1px solid var(--border)', position: 'sticky', top: 58, zIndex: 50, background: 'rgba(12,15,20,0.97)', backdropFilter: 'blur(10px)' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 1.5rem', display: 'flex', gap: 0 }}>
+        <div className="admin-tabs" style={{ maxWidth: 1100, margin: '0 auto', padding: '0 1.5rem', display: 'flex', gap: 0 }}>
           {tabs.map(tab => {
             const active = tab.exact ? path === tab.to : path.startsWith(tab.to)
             return (
@@ -28,7 +28,7 @@ export default function AdminLayout() {
           })}
         </div>
       </div>
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '1.75rem 1.5rem 3rem' }}>
+      <div className="inner" style={{ maxWidth: 1100, margin: '0 auto', padding: '1.75rem 1.5rem 3rem' }}>
         <Outlet />
       </div>
     </AppLayout>

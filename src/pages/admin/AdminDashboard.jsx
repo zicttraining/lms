@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { WEEKS, getCertStatus } from '../../lib/programData'
+import { WEEKS, getCertStatus, getWeeksByProgram } from '../../lib/programData'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 export default function AdminDashboard() {
@@ -34,9 +34,11 @@ export default function AdminDashboard() {
   const certCounts = [1, 2, 3].map(l => students.filter(st => getCertStatus(allProgress.filter(p => p.user_id === st.id)).includes(l)).length)
   const totalTimeHours = Math.round(timeData.reduce((s, t) => s + (t.duration_seconds || 0), 0) / 3600)
 
-  const weekChartData = WEEKS.map(w => ({
-    name: `W${w.num}`, submissions: allProgress.filter(p => p.week_num === w.num && p.completed).length, color: w.color
-  }))
+  // Chart shows all weeks that have any submissions across all programs
+  const allProgramWeeks = ['applied_ai','aws'].flatMap(p => getWeeksByProgram(p))
+  const weekChartData = allProgramWeeks
+    .map(w => ({ name: `${w.program === 'aws' ? 'AWS' : 'AI'} W${w.num}`, submissions: allProgress.filter(p => p.week_num === w.num && p.completed).length, color: w.color }))
+    .filter(d => d.submissions > 0)
 
   const needsAttention = students.filter(st => {
     const done = allProgress.filter(p => p.user_id === st.id && p.completed).length
@@ -45,7 +47,7 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+      <div className="admin-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
         <div>
           <div style={{ fontSize: '0.62rem', color: 'var(--orange)', textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 4 }}>Administrator</div>
           <h1 style={{ fontWeight: 800, fontSize: '1.6rem' }}>Cohort Overview</h1>
@@ -73,7 +75,7 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.25rem' }}>
+      <div className="dash-grid">
         <div>
           {/* Submissions by week chart */}
           <div className="card card-p" style={{ marginBottom: '1.25rem' }}>

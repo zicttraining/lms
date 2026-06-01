@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
+import JobMatchPanel from '../JobMatchPanel'
 
 export default function AppLayout({ children }) {
   const { profile, signOut, updateLanguage } = useAuth()
@@ -14,10 +15,15 @@ export default function AppLayout({ children }) {
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifs, setNotifs] = useState([])
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [progress, setProgress] = useState([])
 
   const isAdmin = ['admin', 'instructor'].includes(profile?.role)
 
   useEffect(() => {
+    if (profile?.id && !isAdmin) {
+      supabase.from('progress').select('*').eq('user_id', profile.id)
+        .then(({ data }) => setProgress(data || []))
+    }
     fetchCounts()
     const channel = supabase.channel('notifs')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile?.id}` },
@@ -64,8 +70,8 @@ export default function AppLayout({ children }) {
       {/* Top Nav */}
       <nav className="topnav">
         <div className="inner-wide topnav-inner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <button className="mobile-menu-btn" style={{ display: 'none', background: 'none', border: 'none', color: 'var(--text)', fontSize: '1.2rem' }} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>☰</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className="mobile-menu-btn" style={{ background: 'none', border: 'none', color: 'var(--text)', fontSize: '1.2rem' }} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>☰</button>
             <Link to="/dashboard" className="nav-logo">
               <div className="nav-logo-mark">Z</div>
               <div>
@@ -80,7 +86,7 @@ export default function AppLayout({ children }) {
             <select
               value={i18n.language}
               onChange={e => updateLanguage(e.target.value)}
-              className="input"
+              className="input lang-select"
               style={{ width: 'auto', padding: '5px 10px', fontSize: '0.76rem', background: 'var(--s2)' }}
             >
               <option value="en">🇺🇸 EN</option>
@@ -113,6 +119,11 @@ export default function AppLayout({ children }) {
           </div>
         </div>
       </nav>
+
+      {/* Mobile sidebar overlay */}
+      {mobileMenuOpen && (
+        <div className="sidebar-overlay" onClick={() => setMobileMenuOpen(false)} />
+      )}
 
       {/* App layout */}
       <div className="app-layout">
@@ -154,6 +165,25 @@ export default function AppLayout({ children }) {
           {children}
         </main>
       </div>
+
+      {/* Job match floating panel — students only */}
+      {!isAdmin && <JobMatchPanel progress={progress} />}
+
+      {/* Mobile bottom navigation */}
+      <nav className="mobile-bottom-nav">
+        {navItems.map(item => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className={`mobile-bottom-nav-item ${path === item.to || path.startsWith(item.to + '/') ? 'active' : ''}`}
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            {item.badge > 0 && <span className="bnav-badge">{item.badge}</span>}
+            <span className="bnav-icon">{item.icon}</span>
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </nav>
     </div>
   )
 }
