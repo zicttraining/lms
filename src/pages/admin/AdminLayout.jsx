@@ -10,6 +10,7 @@ export default function AdminLayout() {
     { to: '/admin', label: '📊 Overview', exact: true },
     { to: '/admin/students', label: '👥 Students' },
     { to: '/admin/grading', label: '📋 Grading' },
+    { to: '/admin/assessments', label: '📝 Assessments' },
     { to: '/admin/attendance', label: '✅ Attendance' },
     { to: '/admin/notifications', label: '🔔 Notifications' },
   ]

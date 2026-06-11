@@ -58,6 +58,8 @@ export default function AppLayout({ children }) {
     { to: '/dashboard', icon: '⊞', label: t('dashboard') },
     { to: '/program', icon: '📚', label: t('program') },
     { to: '/career', icon: '🚀', label: t('careerCenter') },
+    { to: '/assessments', icon: '📝', label: 'Assessments' },
+    ...(!profile?.survey_completed ? [{ to: '/survey', icon: '📋', label: 'Intake Survey' }] : []),
     { to: '/messages', icon: '✉', label: t('messages'), badge: unreadMessages },
   ]
 

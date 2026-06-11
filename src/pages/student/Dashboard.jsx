@@ -5,28 +5,33 @@ import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import AppLayout from '../../components/layout/AppLayout'
 import { getWeeksByProgram, getTotalLabsByProgram, getCertStatus, getWeekStatus, getProgramById } from '../../lib/programData'
+import { getScoreLevel, TRACK_INTEL, getImprovementSuggestions, SCORE_LEVELS } from '../../lib/careerIntel'
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 export default function Dashboard() {
   const { profile } = useAuth()
   const { t } = useTranslation()
   const [progress, setProgress] = useState([])
+  const [asmtSubs, setAsmtSubs] = useState([])
   const [timeData, setTimeData] = useState([])
   const [attendance, setAttendance] = useState({ total: 0, present: 0 })
   const [recentNotifs, setRecentNotifs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showJobs, setShowJobs] = useState(false)
 
   useEffect(() => {
     if (profile?.id) loadAll()
   }, [profile?.id])
 
   async function loadAll() {
-    const [{ data: prog }, { data: time }, { data: att }, { data: notifs }] = await Promise.all([
+    const [{ data: prog }, { data: time }, { data: att }, { data: notifs }, { data: subs }] = await Promise.all([
       supabase.from('progress').select('*').eq('user_id', profile.id),
       supabase.from('time_tracking').select('*').eq('user_id', profile.id).order('session_start', { ascending: false }).limit(14),
       supabase.from('attendance').select('session_id').eq('user_id', profile.id),
       supabase.from('notifications').select('*').eq('user_id', profile.id).eq('read', false).order('created_at', { ascending: false }).limit(5),
+      supabase.from('assessment_submissions').select('*').eq('user_id', profile.id),
     ])
+    setAsmtSubs(subs || [])
     setProgress(prog || [])
     const totalSessions = await supabase.from('class_sessions').select('*', { count: 'exact', head: true })
     setAttendance({ present: att?.length || 0, total: totalSessions.count || 0 })
@@ -55,6 +60,23 @@ export default function Dashboard() {
 
   const gradeMap = { pass: 0, fail: 0, pending: 0 }
   progress.forEach(p => { if (p.grade) gradeMap[p.grade] = (gradeMap[p.grade] || 0) + 1 })
+
+  // Assessment score intelligence
+  const totalAsmtScore = asmtSubs.filter(s => s.grade === 'pass').reduce((sum, s) => sum + (s.score || 0), 0)
+  const asmtPasses = asmtSubs.filter(s => s.grade === 'pass').length
+  const asmtFails = asmtSubs.filter(s => s.grade === 'fail').length
+  const scoreLevel = getScoreLevel(totalAsmtScore)
+  const trackIntel = TRACK_INTEL[profile?.career_track]
+  const nextScoreLevel = SCORE_LEVELS.find(l => l.min > totalAsmtScore)
+  const pointsToNext = nextScoreLevel ? nextScoreLevel.min - totalAsmtScore : 0
+  const improvements = getImprovementSuggestions(profile?.career_track, profile?.skill_level || 'beginner', asmtFails, totalAsmtScore, asmtSubs.length, asmtPasses)
+  // Jobs for current level
+  const currentJobs = trackIntel?.jobs?.[scoreLevel.id] || trackIntel?.jobs?.foundation || []
+  const nextLevelId = SCORE_LEVELS[SCORE_LEVELS.indexOf(scoreLevel) + 1]?.id
+  const nextLevelJobs = nextLevelId && trackIntel?.jobs?.[nextLevelId] ? trackIntel.jobs[nextLevelId] : []
+  // Congratulations: recently passed assessment
+  const latestPass = [...asmtSubs].filter(s => s.grade === 'pass').sort((a, b) => new Date(b.graded_at) - new Date(a.graded_at))[0]
+  const showCongrats = latestPass && (Date.now() - new Date(latestPass.graded_at).getTime()) < 7 * 86400000
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? t('goodMorning') : hour < 17 ? t('goodAfternoon') : t('goodEvening')
@@ -114,6 +136,32 @@ export default function Dashboard() {
         </div>
 
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '1.75rem 1.5rem' }}>
+
+          {/* Survey prompt banner */}
+          {!profile?.survey_completed && (
+            <div style={{ padding: '14px 18px', background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.25)', borderRadius: 'var(--r)', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 700, color: 'var(--orange)', fontSize: '0.86rem', marginBottom: 2 }}>📋 Complete your intake survey</div>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text2)' }}>Takes 5 minutes — sets your career track, skill level, and unlocks personalized assessments + job suggestions.</div>
+              </div>
+              <Link to="/survey" className="btn btn-primary btn-sm">Start Survey →</Link>
+            </div>
+          )}
+
+          {/* Congratulations banner */}
+          {showCongrats && (
+            <div style={{ padding: '14px 18px', background: 'var(--green-d)', border: '1px solid var(--green-b)', borderRadius: 'var(--r)', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 700, color: 'var(--green)', fontSize: '0.9rem', marginBottom: 2 }}>🎉 Assessment Passed!</div>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text2)' }}>
+                  You scored <strong style={{ color: 'var(--green)' }}>{latestPass.score || 0} points</strong> on your last assessment.
+                  {totalAsmtScore > 0 && <> Total assessment score: <strong style={{ color: 'var(--orange)' }}>{totalAsmtScore} pts</strong> — {scoreLevel.label} level.</>}
+                </div>
+              </div>
+              <Link to="/assessments" className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--green-b)', color: 'var(--green)' }}>View Assessments →</Link>
+            </div>
+          )}
+
           {/* KPI row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: '1.75rem' }} className="fade-up-2">
             <StatCard num={weeksActive} label="Weeks Active" icon="📅" color="var(--orange)" />
@@ -217,10 +265,88 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* Assessment Score Card */}
+              {profile?.survey_completed && (
+                <div className="card card-p fade-up-3">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <div className="section-label" style={{ marginBottom: 0 }}>Assessment Score</div>
+                    <Link to="/assessments" style={{ fontSize: '0.7rem', color: 'var(--orange)', textDecoration: 'none' }}>View all →</Link>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '2.2rem', fontWeight: 800, color: scoreLevel.color, lineHeight: 1 }}>{totalAsmtScore}</div>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--muted)' }}>total pts</div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: scoreLevel.color, background: `${scoreLevel.color}18`, padding: '2px 8px', borderRadius: 10 }}>{scoreLevel.label}</span>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text2)', lineHeight: 1.4 }}>{scoreLevel.desc}</div>
+                    </div>
+                  </div>
+                  {nextScoreLevel && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', padding: '6px 10px', background: 'var(--s2)', borderRadius: 6, marginBottom: 8 }}>
+                      <strong style={{ color: 'var(--orange)' }}>{pointsToNext} pts</strong> to {nextScoreLevel.label} — complete more assessments
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 6, fontSize: '0.68rem' }}>
+                    <span style={{ background: 'var(--green-d)', color: 'var(--green)', padding: '2px 8px', borderRadius: 8, fontWeight: 600 }}>{asmtPasses} passed</span>
+                    {asmtFails > 0 && <span style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 8 }}>{asmtFails} needs revision</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* Job Suggestions */}
+              {trackIntel && (
+                <div className="card card-p fade-up-4">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <div className="section-label" style={{ marginBottom: 0 }}>{trackIntel.icon} Your Career Path</div>
+                    <button onClick={() => setShowJobs(j => !j)} className="btn btn-ghost btn-sm" style={{ fontSize: '0.68rem' }}>{showJobs ? 'Less ▲' : 'All jobs ▼'}</button>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--orange)', fontWeight: 600, marginBottom: 6 }}>{scoreLevel.label} level — {trackIntel.label}</div>
+                  {currentJobs.slice(0, showJobs ? undefined : 2).map((job, i) => (
+                    <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.8rem' }}>{job.title}</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--orange)', fontWeight: 600 }}>{job.salary}</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: 2 }}>{job.desc}</div>
+                    </div>
+                  ))}
+                  {nextLevelJobs.length > 0 && showJobs && (
+                    <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--s2)', borderRadius: 6 }}>
+                      <div style={{ fontSize: '0.66rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Unlock at {nextScoreLevel?.label || 'next level'} (+{pointsToNext}pts)</div>
+                      {nextLevelJobs.map((job, i) => (
+                        <div key={i} style={{ padding: '4px 0', borderBottom: '1px solid var(--border)', opacity: 0.7 }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.76rem' }}>🔒 {job.title}</div>
+                          <div style={{ fontSize: '0.66rem', color: 'var(--muted)' }}>{job.salary}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {improvements.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: '0.66rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Suggestions</div>
+                      {improvements.map((imp, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 6, padding: '5px 0', fontSize: '0.72rem', color: 'var(--text2)', lineHeight: 1.4 }}>
+                          <span style={{ flexShrink: 0 }}>{imp.icon}</span>
+                          <span>{imp.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {trackIntel.adjacent?.length > 0 && showJobs && (
+                    <div style={{ marginTop: 8, fontSize: '0.68rem', color: 'var(--muted)', padding: '6px 10px', background: 'var(--s2)', borderRadius: 6, lineHeight: 1.5 }}>
+                      <strong style={{ color: 'var(--text2)' }}>Adjacent paths:</strong> {trackIntel.adjacent.join(', ')} tracks<br />
+                      {trackIntel.adjacentWhy}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Quick links */}
               <div className="card card-p">
                 <div className="section-label">Quick Access</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <Link to="/assessments" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }}>📝 My Assessments</Link>
                   <Link to="/career/resume" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }}>📄 Resume Builder</Link>
                   <Link to="/career/jobs" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }}>💼 Job Tracker</Link>
                   <Link to="/messages?tab=support" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }}>💬 Contact Support</Link>

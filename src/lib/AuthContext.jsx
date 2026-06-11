@@ -60,8 +60,12 @@ export function AuthProvider({ children }) {
     setProfile(prev => prev ? { ...prev, language: lang } : prev)
   }
 
+  async function refreshProfile() {
+    if (user) await fetchProfile(user.id)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, fetchProfile, updateLanguage }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, fetchProfile, refreshProfile, updateLanguage }}>
       {children}
     </AuthContext.Provider>
   )

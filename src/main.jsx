@@ -23,6 +23,9 @@ import AdminStudentDetail from './pages/admin/AdminStudentDetail'
 import AdminAttendance from './pages/admin/AdminAttendance'
 import AdminNotifications from './pages/admin/AdminNotifications'
 import AdminGrading from './pages/admin/AdminGrading'
+import AdminAssessments from './pages/admin/AdminAssessments'
+import StudentAssessments from './pages/student/StudentAssessments'
+import SurveyOnboarding from './pages/student/SurveyOnboarding'
 
 function Guard({ children, adminOnly = false }) {
   const { user, profile, loading } = useAuth()
@@ -53,7 +56,10 @@ function AppRoutes() {
         <Route path="attendance" element={<AdminAttendance />} />
         <Route path="notifications" element={<AdminNotifications />} />
         <Route path="grading" element={<AdminGrading />} />
+        <Route path="assessments" element={<AdminAssessments />} />
       </Route>
+      <Route path="/assessments" element={<Guard><StudentAssessments /></Guard>} />
+      <Route path="/survey" element={<Guard><SurveyOnboarding /></Guard>} />
       <Route path="*" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
     </Routes>
   )
