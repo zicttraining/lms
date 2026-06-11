@@ -8,6 +8,7 @@ export function AdminGrading() {
   const [queue, setQueue] = useState([])
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(null) // item id being reviewed
   const [grading, setGrading] = useState(null)
   const [notes, setNotes] = useState('')
 
@@ -16,7 +17,7 @@ export function AdminGrading() {
   async function loadQueue() {
     const [{ data: prog }, { data: profs }] = await Promise.all([
       supabase.from('progress').select('*').eq('grade', 'pending').order('completed_at'),
-      supabase.from('profiles').select('id,full_name,email').eq('role', 'student')
+      supabase.from('profiles').select('id,full_name,email,career_track').eq('role', 'student')
     ])
     setQueue(prog || [])
     setStudents(profs || [])
@@ -30,8 +31,20 @@ export function AdminGrading() {
       body: result === 'pass' ? `✅ Passed! ${notes || 'Great work.'}` : `📝 Needs revision: ${notes || 'Please review and resubmit.'}`,
       type: 'grade', link: `/program/week/${weekNum}/lab/${labNum}`
     })
-    setGrading(null); setNotes('')
+    setGrading(null); setNotes(''); setExpanded(null)
     loadQueue()
+  }
+
+  function parseStepResponses(item) {
+    // Try to parse step_responses JSONB or submission_text JSON
+    if (item.step_responses && Array.isArray(item.step_responses)) return item.step_responses
+    if (item.submission_text) {
+      try {
+        const parsed = JSON.parse(item.submission_text)
+        if (parsed.format === 'stepped' && Array.isArray(parsed.steps)) return parsed.steps
+      } catch {}
+    }
+    return null
   }
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="loader" /></div>
@@ -39,54 +52,136 @@ export function AdminGrading() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-        <h2 style={{ fontWeight: 800, fontSize: '1.2rem' }}>Grading Queue <span style={{ color: 'var(--yellow)', marginLeft: 8 }}>{queue.length}</span></h2>
+        <div>
+          <h2 style={{ fontWeight: 800, fontSize: '1.2rem' }}>Grading Queue <span style={{ color: 'var(--yellow)', marginLeft: 8 }}>{queue.length}</span></h2>
+          <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 2 }}>Click any row to expand and see step-by-step responses + screenshots</div>
+        </div>
       </div>
       {queue.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted)' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🎉</div>All labs graded — queue is empty!
+          <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🎉</div>All caught up — no pending submissions!
         </div>
       ) : (
-        <div className="card" style={{ overflow: 'hidden' }}>
-          <div className="table-wrap">
-          <div className="grid-table" style={{ minWidth: 620 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 10, padding: '10px 16px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', fontSize: '0.65rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            <div>Student</div><div>Week · Lab</div><div>Submitted</div><div>Submission</div><div>Action</div>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {queue.map(item => {
             const student = students.find(s => s.id === item.user_id)
             const week = getWeekByNum(student?.program, item.week_num)
             const lab = week?.labs[item.lab_num - 1]
+            const stepResps = parseStepResponses(item)
+            const isExpanded = expanded === item.id
+            const isGrading = grading === item.id
+
             return (
-              <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 10, padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.84rem' }}>{student?.full_name}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>{student?.email}</div>
-                </div>
-                <div style={{ fontSize: '0.8rem' }}>W{item.week_num} · L{item.lab_num}<div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: 2 }}>{lab?.title}</div></div>
-                <div style={{ fontSize: '0.74rem', color: 'var(--muted)' }}>{new Date(item.completed_at).toLocaleDateString()}</div>
-                <div>
-                  {item.submission_url && <a href={item.submission_url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm" style={{ fontSize: '0.7rem' }}>View ↗</a>}
-                  {item.submission_text && <div style={{ fontSize: '0.72rem', color: 'var(--text2)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.submission_text}</div>}
-                </div>
-                <div style={{ display: 'flex', gap: 5 }}>
-                  {grading === item.id ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 200 }}>
-                      <input className="input" style={{ padding: '4px 8px', fontSize: '0.74rem' }} placeholder="Instructor notes (optional)…" value={notes} onChange={e => setNotes(e.target.value)} />
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => grade(item.id, 'pass', item.user_id, item.week_num, item.lab_num)}>✅ Pass</button>
-                        <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => grade(item.id, 'fail', item.user_id, item.week_num, item.lab_num)}>❌ Revise</button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => setGrading(null)}>✕</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button className="btn btn-secondary btn-sm" onClick={() => { setGrading(item.id); setNotes('') }}>Grade</button>
+              <div key={item.id} className="card" style={{ overflow: 'hidden', border: isExpanded ? '1px solid var(--orange-b)' : '1px solid var(--border)' }}>
+                {/* Summary row */}
+                <div onClick={() => setExpanded(isExpanded ? null : item.id)}
+                  style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', background: isExpanded ? 'rgba(249,115,22,0.04)' : 'transparent', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{student?.full_name}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>{student?.email}</div>
+                  </div>
+                  <div style={{ fontSize: '0.82rem' }}>
+                    <span style={{ fontWeight: 700 }}>W{item.week_num} · L{item.lab_num}</span>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: 2 }}>{lab?.title}</div>
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{new Date(item.completed_at).toLocaleDateString()}</div>
+                  {stepResps && (
+                    <span style={{ background: 'rgba(59,130,246,0.1)', color: '#3B82F6', padding: '3px 10px', borderRadius: 20, fontSize: '0.66rem', fontWeight: 700 }}>
+                      {stepResps.filter(s => s.text?.trim()).length}/{stepResps.length} steps
+                    </span>
                   )}
+                  <span style={{ color: 'var(--orange)', fontSize: '0.8rem', marginLeft: 'auto', flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
                 </div>
+
+                {/* Expanded — step responses + screenshot gallery + grading */}
+                {isExpanded && (
+                  <div style={{ borderTop: '1px solid var(--border)', padding: '1.25rem 1.5rem' }}>
+
+                    {/* Step-by-step responses */}
+                    {stepResps ? (
+                      <div style={{ marginBottom: '1.25rem' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Step Responses</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {stepResps.map((resp, i) => (
+                            <div key={i} style={{ padding: '12px 14px', background: resp.text?.trim() ? 'var(--s2)' : 'rgba(239,68,68,0.04)', borderRadius: 10, border: `1px solid ${resp.text?.trim() ? 'var(--border)' : 'rgba(239,68,68,0.15)'}` }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap', marginBottom: resp.text ? 8 : 0 }}>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: resp.text?.trim() ? 'var(--green-d)' : 'var(--s3)', border: `1px solid ${resp.text?.trim() ? 'var(--green-b)' : 'var(--border2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.66rem', fontWeight: 800, color: resp.text?.trim() ? 'var(--green)' : 'var(--muted)', flexShrink: 0 }}>{resp.text?.trim() ? '✓' : i + 1}</div>
+                                  <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>{resp.action || `Step ${resp.num}`}</span>
+                                </div>
+                                {resp.screenshot_url && (
+                                  <a href={resp.screenshot_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border2)', flexShrink: 0 }}>
+                                    <img src={resp.screenshot_url} alt={`Step ${i + 1}`} style={{ width: 72, height: 48, objectFit: 'cover', display: 'block' }}
+                                      onError={e => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'block') }} />
+                                  </a>
+                                )}
+                              </div>
+                              {resp.text?.trim() ? (
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{resp.text}</div>
+                              ) : (
+                                <div style={{ fontSize: '0.72rem', color: 'var(--danger)' }}>No response provided for this step</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {/* Screenshot gallery row */}
+                        {stepResps.some(r => r.screenshot_url) && (
+                          <div style={{ marginTop: '1rem' }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Screenshots</div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {stepResps.filter(r => r.screenshot_url).map((r, i) => (
+                                <a key={i} href={r.screenshot_url} target="_blank" rel="noopener noreferrer"
+                                  style={{ display: 'block', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border2)', position: 'relative' }}>
+                                  <img src={r.screenshot_url} alt={r.action} style={{ width: 100, height: 70, objectFit: 'cover', display: 'block' }} />
+                                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', padding: '2px 4px', fontSize: '0.58rem', color: 'white', textAlign: 'center' }}>Step {r.num}</div>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Simple submission (no steps) */
+                      <div style={{ marginBottom: '1.25rem' }}>
+                        {item.submission_url && (
+                          <div style={{ marginBottom: 10 }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Submission</div>
+                            <a href={item.submission_url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm" style={{ fontSize: '0.76rem' }}>📎 View Submission ↗</a>
+                          </div>
+                        )}
+                        {item.submission_text && (
+                          <div>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Written Response</div>
+                            <div style={{ padding: '12px 14px', background: 'var(--s2)', borderRadius: 10, fontSize: '0.8rem', color: 'var(--text2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{item.submission_text}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Grading section */}
+                    {!isGrading ? (
+                      <button className="btn btn-primary" onClick={() => { setGrading(item.id); setNotes('') }}>
+                        📊 Grade This Submission
+                      </button>
+                    ) : (
+                      <div style={{ padding: '16px', background: 'var(--s2)', borderRadius: 12, border: '1px solid var(--border2)' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.84rem', marginBottom: 10 }}>Grade: {student?.full_name} · W{item.week_num}L{item.lab_num}</div>
+                        <div className="form-group" style={{ marginBottom: 12 }}>
+                          <label className="form-label">Feedback for student</label>
+                          <textarea className="input" rows={3} placeholder="Specific feedback, what was good, what to improve…" value={notes} onChange={e => setNotes(e.target.value)} />
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button className="btn btn-success" style={{ flex: 1 }} onClick={() => grade(item.id, 'pass', item.user_id, item.week_num, item.lab_num)}>✅ Pass</button>
+                          <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => grade(item.id, 'fail', item.user_id, item.week_num, item.lab_num)}>📝 Request Revision</button>
+                          <button className="btn btn-ghost" onClick={() => { setGrading(null); setNotes('') }}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
-          </div>{/* grid-table */}
-          </div>{/* table-wrap */}
         </div>
       )}
     </div>

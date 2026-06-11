@@ -1,16 +1,26 @@
 // AdminLayout.jsx
+import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../lib/AuthContext'
+import { supabase } from '../../lib/supabase'
 import AppLayout from '../../components/layout/AppLayout'
 
 export default function AdminLayout() {
   const location = useLocation()
   const path = location.pathname
+  const [pendingRequests, setPendingRequests] = useState(0)
+
+  useEffect(() => {
+    supabase.from('account_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      .then(({ count }) => setPendingRequests(count || 0))
+  }, [path])
+
   const tabs = [
     { to: '/admin', label: '📊 Overview', exact: true },
     { to: '/admin/students', label: '👥 Students' },
     { to: '/admin/grading', label: '📋 Grading' },
     { to: '/admin/assessments', label: '📝 Assessments' },
+    { to: '/admin/approvals', label: `✋ Approvals${pendingRequests > 0 ? ` (${pendingRequests})` : ''}` },
     { to: '/admin/attendance', label: '✅ Attendance' },
     { to: '/admin/notifications', label: '🔔 Notifications' },
   ]

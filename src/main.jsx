@@ -23,6 +23,7 @@ import AdminStudentDetail from './pages/admin/AdminStudentDetail'
 import AdminAttendance from './pages/admin/AdminAttendance'
 import AdminNotifications from './pages/admin/AdminNotifications'
 import AdminGrading from './pages/admin/AdminGrading'
+import AdminApprovals from './pages/admin/AdminApprovals'
 import AdminAssessments from './pages/admin/AdminAssessments'
 import StudentAssessments from './pages/student/StudentAssessments'
 import SurveyOnboarding from './pages/student/SurveyOnboarding'
@@ -57,6 +58,7 @@ function AppRoutes() {
         <Route path="notifications" element={<AdminNotifications />} />
         <Route path="grading" element={<AdminGrading />} />
         <Route path="assessments" element={<AdminAssessments />} />
+        <Route path="approvals" element={<AdminApprovals />} />
       </Route>
       <Route path="/assessments" element={<Guard><StudentAssessments /></Guard>} />
       <Route path="/survey" element={<Guard><SurveyOnboarding /></Guard>} />

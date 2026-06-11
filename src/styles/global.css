@@ -669,3 +669,207 @@ button { cursor: pointer; font-family: inherit; }
   .job-match-fab { padding: 12px; border-radius: 50%; }
 }
 
+/* ══════════════════════════════════════════
+   Modern UI Enhancements — v2
+══════════════════════════════════════════ */
+
+/* ── Enhanced cards ── */
+.card {
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.card-glow:hover {
+  box-shadow: 0 0 0 1px rgba(249,115,22,0.2), 0 8px 32px rgba(0,0,0,0.4);
+}
+.card-glass {
+  background: rgba(19, 23, 32, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Step cards in guided labs ── */
+.step-card {
+  transition: background 0.2s;
+}
+.step-card:hover {
+  background: rgba(255,255,255,0.01);
+}
+
+/* ── Screenshot thumbnail ── */
+.screenshot-thumb {
+  width: 80px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.screenshot-thumb:hover {
+  transform: scale(1.05);
+  border-color: var(--orange);
+}
+
+/* ── Screenshot gallery grid ── */
+.screenshot-gallery {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.screenshot-gallery a {
+  position: relative;
+  display: block;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border2);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.screenshot-gallery a:hover {
+  border-color: var(--orange);
+  transform: translateY(-2px);
+}
+
+/* ── Modern step upload zone ── */
+.step-upload-zone {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1.5px dashed var(--border2);
+  cursor: pointer;
+  font-size: 0.76rem;
+  color: var(--muted);
+  background: var(--s3);
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+.step-upload-zone:hover {
+  border-color: var(--orange);
+  background: var(--orange-d);
+  color: var(--orange);
+}
+
+/* ── Lab progress strip ── */
+.lab-progress-strip {
+  height: 5px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--s3);
+}
+.lab-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+  background: linear-gradient(90deg, var(--orange), var(--yellow));
+}
+
+/* ── Back button pill ── */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--s2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.back-btn:hover {
+  color: var(--text);
+  background: var(--s3);
+  border-color: var(--border2);
+}
+
+/* ── Breadcrumb ── */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.breadcrumb a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.breadcrumb a:hover { color: var(--text); }
+.breadcrumb-sep { color: var(--border2); }
+.breadcrumb-current { color: var(--text); }
+
+/* ── Slide presentation mode ── */
+.slide-container {
+  position: relative;
+  overflow: hidden;
+}
+.slide-content {
+  animation: slideContentIn 0.3s ease both;
+}
+@keyframes slideContentIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Account request card ── */
+.request-card {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--s1);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.request-card:hover { border-color: var(--border2); }
+.request-card.pending { border-left: 3px solid var(--orange); }
+.request-card.approved { border-left: 3px solid var(--green); }
+.request-card.rejected { border-left: 3px solid var(--muted); }
+
+/* ── Grade reveal animation ── */
+@keyframes gradeReveal {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.grade-reveal { animation: gradeReveal 0.4s ease both; }
+
+/* ── Slide dots (pill style) ── */
+.slide-dot {
+  height: 6px;
+  border-radius: 3px;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+}
+
+/* ── Submit button pulse when all steps done ── */
+@keyframes readyPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(249,115,22,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(249,115,22,0); }
+}
+.btn-ready { animation: readyPulse 2s ease-in-out infinite; }
+
+/* ── Approval badge on tab ── */
+.approval-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--orange);
+  color: white;
+  font-size: 0.58rem;
+  font-weight: 800;
+  margin-left: 4px;
+  line-height: 1;
+}
+
