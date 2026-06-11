@@ -205,3 +205,4 @@ CREATE TRIGGER trigger_week_unlock
 -- TO DELETE A JOB:
 -- SELECT cron.unschedule('zict-grade-queue-alert');
 -- ───────────────────────────────────────────────────────────────
+
