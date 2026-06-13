@@ -1,29 +1,30 @@
-// AdminLayout.jsx
+// InstructorLayout.jsx — Wrapper for instructor (teacher) dashboard pages
 import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import AppLayout from '../../components/layout/AppLayout'
 
-export default function AdminLayout() {
+export default function InstructorLayout() {
   const location = useLocation()
   const path = location.pathname
-  const [pendingRequests, setPendingRequests] = useState(0)
+  const { profile } = useAuth()
+  const [pendingGrades, setPendingGrades] = useState(0)
 
   useEffect(() => {
-    supabase.from('account_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
-      .then(({ count }) => setPendingRequests(count || 0))
+    supabase.from('progress').select('id', { count: 'exact', head: true }).eq('grade', 'pending')
+      .then(({ count }) => setPendingGrades(count || 0))
   }, [path])
 
   const tabs = [
-    { to: '/admin', label: '📊 Overview', exact: true },
-    { to: '/admin/students', label: '👥 Students' },
-    { to: '/admin/grading', label: '📋 Grading' },
-    { to: '/admin/assessments', label: '📝 Assessments' },
-    { to: '/admin/approvals', label: `✋ Approvals${pendingRequests > 0 ? ` (${pendingRequests})` : ''}` },
-    { to: '/admin/attendance', label: '✅ Attendance' },
-    { to: '/admin/notifications', label: '🔔 Notifications' },
+    { to: '/instructor', label: '📊 Overview', exact: true },
+    { to: '/instructor/students', label: '👥 Students' },
+    { to: '/instructor/grading', label: `📋 Grading${pendingGrades > 0 ? ` (${pendingGrades})` : ''}` },
+    { to: '/instructor/assignments', label: '📝 Assignments' },
+    { to: '/instructor/class', label: '🎬 Class' },
+    { to: '/instructor/notifications', label: '🔔 Messages' },
   ]
+
   return (
     <AppLayout>
       <div style={{ borderBottom: '1px solid var(--border)', position: 'sticky', top: 58, zIndex: 50, background: 'var(--s1)', backdropFilter: 'blur(10px)' }}>

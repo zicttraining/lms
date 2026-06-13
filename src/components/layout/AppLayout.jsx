@@ -59,11 +59,15 @@ export default function AppLayout({ children }) {
     { to: '/program', icon: '📚', label: t('program') },
     { to: '/career', icon: '🚀', label: t('careerCenter') },
     { to: '/assessments', icon: '📝', label: 'Assessments' },
+    { to: '/analytics', icon: '📊', label: 'Analytics' },
+    { to: '/notes', icon: '📓', label: 'Notes' },
     ...(!profile?.survey_completed ? [{ to: '/survey', icon: '📋', label: 'Intake Survey' }] : []),
     { to: '/messages', icon: '✉', label: t('messages'), badge: unreadMessages },
   ]
 
-  if (isAdmin) {
+  if (isAdmin && profile?.role === 'instructor') {
+    navItems.push({ to: '/instructor', icon: '👨‍🏫', label: 'Teacher Dashboard' })
+  } else if (isAdmin) {
     navItems.push({ to: '/admin', icon: '⚙', label: t('admin') })
   }
 

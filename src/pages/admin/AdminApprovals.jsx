@@ -28,6 +28,12 @@ export default function AdminApprovals() {
   const [actionMsg, setActionMsg] = useState({}) // { id: {type, text} }
   const [working, setWorking] = useState(false)
 
+  const [manualCreate, setManualCreate] = useState({
+    full_name: '', email: '', program: 'applied_ai', preferred_language: 'en', password: genPassword(),
+  })
+  const [manualMsg, setManualMsg] = useState(null)
+  const [manualLoading, setManualLoading] = useState(false)
+
   useEffect(() => { load() }, [])
 
   async function load() {
@@ -93,6 +99,28 @@ export default function AdminApprovals() {
     load()
   }
 
+  async function createManualAccount() {
+    setManualLoading(true)
+    setManualMsg(null)
+    const { full_name, email, program, preferred_language, password } = manualCreate
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim().toLowerCase(),
+      password,
+      options: { data: { full_name, role: 'student', program } }
+    })
+    if (error) {
+      setManualMsg({ type: 'error', text: error.message })
+      setManualLoading(false)
+      return
+    }
+    if (data?.user?.id) {
+      await supabase.from('profiles').update({ program, language: preferred_language }).eq('id', data.user.id)
+    }
+    setManualMsg({ type: 'success', text: `Student account created for ${full_name}. Email: ${email}. Password: ${password}` })
+    setManualCreate(m => ({ ...m, full_name: '', email: '', password: genPassword() }))
+    setManualLoading(false)
+  }
+
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}><div className="loader" /></div>
 
   return (
@@ -105,6 +133,54 @@ export default function AdminApprovals() {
         {pendingCount > 0 && (
           <div style={{ padding: '8px 16px', background: 'var(--orange-d)', border: '1px solid var(--orange-b)', borderRadius: 8, fontSize: '0.8rem', color: 'var(--orange)', fontWeight: 700 }}>
             ⏳ {pendingCount} awaiting review
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{ marginBottom: '1.5rem', padding: '1.25rem', borderLeft: '3px solid var(--blue)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: '1rem' }}>
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Create Student Account</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>Create and issue login credentials without a request.</div>
+          </div>
+          <button className="btn btn-sm btn-ghost" onClick={() => setManualCreate(m => ({ ...m, password: genPassword() }))}>Generate password</button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: '1rem' }}>
+          <div className="form-group">
+            <label className="form-label">Full Name</label>
+            <input className="input" value={manualCreate.full_name} onChange={e => setManualCreate(m => ({ ...m, full_name: e.target.value }))} placeholder="Full name" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Email</label>
+            <input className="input" type="email" value={manualCreate.email} onChange={e => setManualCreate(m => ({ ...m, email: e.target.value }))} placeholder="student@example.com" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Program</label>
+            <select className="input select" value={manualCreate.program} onChange={e => setManualCreate(m => ({ ...m, program: e.target.value }))}>
+              {PROGRAMS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Language</label>
+            <select className="input select" value={manualCreate.preferred_language} onChange={e => setManualCreate(m => ({ ...m, preferred_language: e.target.value }))}>
+              <option value="en">English</option>
+              <option value="ar">Arabic</option>
+              <option value="fa">Persian</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, alignItems: 'flex-end' }}>
+          <div className="form-group">
+            <label className="form-label">Temporary Password</label>
+            <input className="input" value={manualCreate.password} onChange={e => setManualCreate(m => ({ ...m, password: e.target.value }))} />
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={createManualAccount} disabled={manualLoading || !manualCreate.full_name || !manualCreate.email}>
+            {manualLoading ? 'Creating…' : 'Create Student Account'}
+          </button>
+        </div>
+        {manualMsg && (
+          <div style={{ marginTop: '1rem', padding: '12px 14px', borderRadius: 10, background: manualMsg.type === 'success' ? 'var(--green-d)' : 'rgba(239,68,68,0.08)', border: manualMsg.type === 'success' ? '1px solid var(--green-b)' : '1px solid rgba(239,68,68,0.2)', color: manualMsg.type === 'success' ? 'var(--green)' : 'var(--danger)' }}>
+            {manualMsg.text}
           </div>
         )}
       </div>

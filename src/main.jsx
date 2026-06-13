@@ -27,12 +27,18 @@ import AdminApprovals from './pages/admin/AdminApprovals'
 import AdminAssessments from './pages/admin/AdminAssessments'
 import StudentAssessments from './pages/student/StudentAssessments'
 import SurveyOnboarding from './pages/student/SurveyOnboarding'
+import Analytics from './pages/student/Analytics'
+import Notes from './pages/student/Notes'
+import InstructorLayout from './pages/instructor/InstructorLayout'
+import InstructorDashboard from './pages/instructor/InstructorDashboard'
+import InstructorAssignments from './pages/instructor/InstructorAssignments'
 
-function Guard({ children, adminOnly = false }) {
+function Guard({ children, adminOnly = false, instructorOnly = false }) {
   const { user, profile, loading } = useAuth()
   if (loading) return <div className="loading-screen"><div className="loader" /></div>
   if (!user) return <Navigate to="/login" replace />
   if (adminOnly && !['admin', 'instructor'].includes(profile?.role)) return <Navigate to="/dashboard" replace />
+  if (instructorOnly && !['admin', 'instructor'].includes(profile?.role)) return <Navigate to="/dashboard" replace />
   return children
 }
 
@@ -61,7 +67,18 @@ function AppRoutes() {
         <Route path="approvals" element={<AdminApprovals />} />
       </Route>
       <Route path="/assessments" element={<Guard><StudentAssessments /></Guard>} />
+      <Route path="/analytics" element={<Guard><Analytics /></Guard>} />
+      <Route path="/notes" element={<Guard><Notes /></Guard>} />
       <Route path="/survey" element={<Guard><SurveyOnboarding /></Guard>} />
+      <Route path="/instructor" element={<Guard instructorOnly><InstructorLayout /></Guard>}>
+        <Route index element={<InstructorDashboard />} />
+        <Route path="students" element={<AdminStudents />} />
+        <Route path="students/:id" element={<AdminStudentDetail />} />
+        <Route path="grading" element={<AdminGrading />} />
+        <Route path="assignments" element={<InstructorAssignments />} />
+        <Route path="class" element={<AdminAttendance />} />
+        <Route path="notifications" element={<AdminNotifications />} />
+      </Route>
       <Route path="*" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
     </Routes>
   )
