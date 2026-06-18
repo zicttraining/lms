@@ -400,7 +400,6 @@ export const TRACK_INTEL = {
     adjacentWhy: 'Sales + marketing = growth and demand generation. Sales + business ops = revenue operations (RevOps) — one of the highest-paying entry-level paths in tech.',
     certPaths: ['HubSpot Sales Software Certification', 'Salesforce Associate', 'LinkedIn Sales Navigator Certification', 'Dale Carnegie Sales Training'],
   },
-}
 
   // ── AWS Program tracks ──────────────────────────────────────
   aws_cloud_eng: {
